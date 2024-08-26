@@ -61,15 +61,26 @@ if ((Get-WinUtilToggleStatus WPFToggleDarkMode) -eq $True) {
 } else {
     $ctttheme = 'Classic'
 }
-$inputXML = Set-WinUtilUITheme -inputXML $inputXML -themeName $ctttheme
+
+$inputXML = Set-WinUtilUITheme -inputXML $inputXML -customThemeName $ctttheme
+if ($inputXML -eq "") {
+    Write-Host "Failed to statically apply theming to xaml content using Set-WinUtilTheme, please check previous Error/Warning messages." -ForegroundColor Red
+    Write-Host "Quitting winutil..." -ForegroundColor Red
+    $sync.runspace.Dispose()
+    $sync.runspace.Close()
+    [System.GC]::Collect()
+    exit 1
+}
 
 [void][System.Reflection.Assembly]::LoadWithPartialName('presentationframework')
 [xml]$XAML = $inputXML
 
 # Read the XAML file
+$readerOperationSuccessful = $false # There's more cases of failure then success.
 $reader = (New-Object System.Xml.XmlNodeReader $xaml)
 try {
     $sync["Form"] = [Windows.Markup.XamlReader]::Load( $reader )
+    $readerOperationSuccessful = $true
 } catch [System.Management.Automation.MethodInvocationException] {
     Write-Warning "We ran into a problem with the XAML code.  Check the syntax for this control..."
     Write-Host $error[0].Exception.Message -ForegroundColor Red
@@ -79,6 +90,15 @@ try {
     }
 } catch {
     Write-Host "Unable to load Windows.Markup.XamlReader. Double-check syntax and ensure .net is installed."
+}
+
+if (-NOT ($readerOperationSuccessful)) {
+    Write-Host "Failed to parse xaml content using Windows.Markup.XamlReader's Load Method." -ForegroundColor Red
+    Write-Host "Quitting winutil..." -ForegroundColor Red
+    $sync.runspace.Dispose()
+    $sync.runspace.Close()
+    [System.GC]::Collect()
+    exit 1
 }
 
 #===========================================================================
